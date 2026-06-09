@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 
 import spotifyRoutes from "./routes/spotify.routes.js";
 import errorHandler from "./middlewares/errorHandler.js";
+import "./config/database.js";
 
 dotenv.config();
 
