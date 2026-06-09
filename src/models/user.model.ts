@@ -21,5 +21,17 @@ const createUser = async (userData: {
   const insertId = (result as any).insertId;
   return { id: insertId, username: userData.username, email: userData.email };
 };
+const updateToken = async (
+  userId: number,
+  tokens: { access_token: string; refresh_token: string },
+) => {
+  const query =
+    "UPDATE users SET access_token = ?, refresh_token = ? WHERE id = ?";
+  await pool.execute(query, [
+    tokens.access_token,
+    tokens.refresh_token,
+    userId,
+  ]);
+};
 
-export default { findSpotifyId, createUser };
+export default { findSpotifyId, createUser, updateToken };
