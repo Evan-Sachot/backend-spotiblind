@@ -19,7 +19,11 @@ const getSpotifyAuthUrl = (): string => {
 };
 const getTokens = async (
   code: string,
-): Promise<{ access_token: string; refresh_token: string }> => {
+): Promise<{
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+}> => {
   const clientId = process.env.SPOTIFY_CLIENT_ID || "";
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET || "";
   const authBuffer = Buffer.from(`${clientId}:${clientSecret}`).toString(

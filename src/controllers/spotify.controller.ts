@@ -26,10 +26,18 @@ const callback = async (
     if (!code) {
       throw new AppError("Code manquant ou refusé", 400);
     }
-    const token = await spotifyService.getTokens(code);
-    const profile = await spotifyService.getSpotifyProfile(token.access_token);
+    const tokenData = await spotifyService.getTokens(code);
+    const profile = await spotifyService.getSpotifyProfile(
+      tokenData.access_token,
+    );
+    const expireAt = new Date(Date.now() + tokenData.expires_in * 1000); // calcul de la date d'expiration
     const existingUser = await userModel.findSpotifyId(profile.spotifyId);
     if (existingUser) {
+      await userModel.updateToken(existingUser.id, {
+        access_token: tokenData.access_token,
+        refresh_token: tokenData.refresh_token,
+        expire_at: expireAt,
+      });
       const jwtToken = authService.generateToken(
         existingUser.id,
         existingUser.username,
@@ -40,37 +48,50 @@ const callback = async (
         token: jwtToken,
       });
     } else {
-      res.json({
-        message: "Nouvel utilisateur, redirection vers l'inscription",
+      const tempUsername = `Spo_${profile.spotifyId.substring(0, 6)}`;
+      const newUser = await userModel.createUser({
         spotifyId: profile.spotifyId,
         email: profile.email,
+        username: tempUsername,
+        access_token: tokenData.access_token,
+        refresh_token: tokenData.refresh_token,
+        expire_at: expireAt,
+      });
+      const jwtToken = authService.generateToken(newUser.id, newUser.username);
+      res.status(201).json({
+        message: "Inscription automatique réussie",
+        user: newUser,
+        token: jwtToken,
+        isNewUser: true,
       });
     }
   } catch (error) {
     next(error);
   }
 };
-const register = async (
+
+const updateUsername = async (
   req: Request,
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const { spotifyId, email, username } = req.body;
+    const { userId, username } = req.body;
     if (!username || username.trim() === "") {
-      throw new AppError("Pseudo obligatoire", 400);
+      throw new AppError("userId et username sont requis", 400);
     }
-    if (!email || email.trim() === "") {
-      throw new AppError("Email obligatoire", 400);
+    if (!userId) {
+      throw new AppError("userId manquant", 400);
     }
-    const newUser = await userModel.createUser({ spotifyId, email, username });
-    const jwtToken = authService.generateToken(newUser.id, newUser.username);
-    res
-      .status(201)
-      .json({ message: "User created", user: newUser, token: jwtToken });
+    await userModel.updateUsername(userId, username);
+    const newToken = authService.generateToken(userId, username);
+    res.json({
+      message: "Username mis à jour avec succès",
+      token: newToken,
+      user: { id: userId, username },
+    });
   } catch (error) {
     next(error);
   }
 };
-
-export default { LoginWithSpotify, callback, register };
+export default { LoginWithSpotify, callback, updateUsername };

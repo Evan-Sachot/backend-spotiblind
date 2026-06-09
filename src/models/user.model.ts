@@ -43,5 +43,12 @@ const updateToken = async (
     userId,
   ]);
 };
+const updateUsername = async (
+  userId: number,
+  username: string,
+): Promise<void> => {
+  const query = "UPDATE users SET username = ? WHERE id =?";
+  await pool.execute(query, [username, userId]);
+};
 
-export default { findSpotifyId, createUser, updateToken };
+export default { findSpotifyId, createUser, updateToken, updateUsername };
