@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import AppError from "../errors/appError.js";
 import spotifyService from "../services/spotify.service.js";
+import authService from "../services/auth.service.js";
 import userModel from "../models/user.model.js";
 
 const LoginWithSpotify = (
@@ -29,7 +30,15 @@ const callback = async (
     const profile = await spotifyService.getSpotifyProfile(token.access_token);
     const existingUser = await userModel.findSpotifyId(profile.spotifyId);
     if (existingUser) {
-      res.json({ message: "Connexion réussie", user: existingUser });
+      const jwtToken = authService.generateToken(
+        existingUser.id,
+        existingUser.username,
+      );
+      res.json({
+        message: "Connexion réussie",
+        user: existingUser,
+        token: jwtToken,
+      });
     } else {
       res.json({
         message: "Nouvel utilisateur, redirection vers l'inscription",
@@ -55,7 +64,10 @@ const register = async (
       throw new AppError("Email obligatoire", 400);
     }
     const newUser = await userModel.createUser({ spotifyId, email, username });
-    res.status(201).json({ message: "User created", user: newUser });
+    const jwtToken = authService.generateToken(newUser.id, newUser.username);
+    res
+      .status(201)
+      .json({ message: "User created", user: newUser, token: jwtToken });
   } catch (error) {
     next(error);
   }
