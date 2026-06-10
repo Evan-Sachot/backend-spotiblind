@@ -30,4 +30,17 @@ export const handleRoomEvents = (io: Server, socket: Socket) => {
     });
     socket.emit("roomJoined", roomCode);
   });
+  socket.on("leaveRoom", () => {
+    const currentRoom = activePlayer.get(user.id);
+    if (currentRoom) {
+      socket.leave(currentRoom);
+      activePlayer.delete(user.id);
+      console.log(`${user.username} a quitté le salon ${currentRoom}`);
+      socket.to(currentRoom).emit("playerLeft", {
+        message: `${user.username} a quitté le salon`,
+        userId: user.id,
+      });
+      socket.emit("roomLeft");
+    }
+  });
 };
