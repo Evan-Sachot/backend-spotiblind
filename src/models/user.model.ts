@@ -1,20 +1,20 @@
 import pool from "../config/database.js";
 import { encrypt } from "../utils/crypto.util.js";
-
-const findSpotifyId = async (spotifyId: string) => {
+import {
+  User,
+  CreateUserData,
+  CreatedUserResult,
+  UserTokens,
+} from "../types/user.type.js";
+const findSpotifyId = async (spotifyId: string): Promise<User | null> => {
   const query = "SELECT* FROM users WHERE spotify_id = ?";
   const [rows] = await pool.execute(query, [spotifyId]);
-  const user = rows as any;
-  return user.length > 0 ? user[0] : null;
+  const users = rows as User[];
+  return users.length > 0 ? users[0] : null;
 };
-const createUser = async (userData: {
-  spotifyId: string;
-  email: string;
-  username: string;
-  access_token: string;
-  refresh_token: string;
-  expire_at: Date;
-}) => {
+const createUser = async (
+  userData: CreateUserData,
+): Promise<CreatedUserResult> => {
   const encryptedRefreshToken = encrypt(userData.refresh_token);
   const query =
     "INSERT INTO users (spotify_id, email, username, access_token, refresh_token, expire_at) VALUES (?,?,?,?,?,?)";
@@ -31,8 +31,8 @@ const createUser = async (userData: {
 };
 const updateToken = async (
   userId: number,
-  tokens: { access_token: string; refresh_token: string; expire_at: Date },
-) => {
+  tokens: UserTokens,
+): Promise<void> => {
   const encryptedRefreshToken = encrypt(tokens.refresh_token);
   const query =
     "UPDATE users SET access_token = ?, refresh_token = ?, expire_at = ? WHERE id = ?";

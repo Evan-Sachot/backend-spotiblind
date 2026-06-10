@@ -20,10 +20,14 @@ export const handleRoomEvents = (io: Server, socket: Socket) => {
     console.log(`room${roomCode} créé par ${user.username}`);
     socket.emit("roomCreated", roomCode);
   });
-  socket.on("join", (roomCode: string) => {
+  socket.on("joinRoom", (roomCode: string) => {
     socket.join(roomCode);
     activePlayer.set(user.id, roomCode);
     console.log(`${user.username} connecté au salon ${roomCode}`);
+    socket.to(roomCode).emit("playerJoined", {
+      message: `${user.username} a rejoint le salon !`,
+      user: { id: user.id, username: user.username },
+    });
     socket.emit("roomJoined", roomCode);
   });
 };
