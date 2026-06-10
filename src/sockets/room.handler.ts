@@ -2,7 +2,7 @@ import { Server, Socket } from "socket.io";
 
 const activePlayer = new Map<number, string>(); //joueurs actif dans un salon
 
-const genereteRoomCode = (): string => {
+const generateRoomCode = (): string => {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 };
 export const handleRoomEvents = (io: Server, socket: Socket) => {
@@ -14,7 +14,7 @@ export const handleRoomEvents = (io: Server, socket: Socket) => {
     socket.emit("roomRejoined", previousRoom);
   }
   socket.on("createRoom", () => {
-    const roomCode = genereteRoomCode();
+    const roomCode = generateRoomCode();
     socket.join(roomCode);
     activePlayer.set(user.id, roomCode);
     console.log(`room${roomCode} créé par ${user.username}`);
