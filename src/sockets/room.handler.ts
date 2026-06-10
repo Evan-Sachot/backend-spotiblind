@@ -1,11 +1,11 @@
 import { Server, Socket } from "socket.io";
-
+import { AuthenticateSocket } from "../types/socket.types.js";
 const activePlayer = new Map<number, string>(); //joueurs actif dans un salon
 
 const generateRoomCode = (): string => {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 };
-export const handleRoomEvents = (io: Server, socket: Socket) => {
+export const handleRoomEvents = (io: Server, socket: AuthenticateSocket) => {
   const user = socket.data.user;
   if (activePlayer.has(user.id)) {
     const previousRoom = activePlayer.get(user.id) as string;

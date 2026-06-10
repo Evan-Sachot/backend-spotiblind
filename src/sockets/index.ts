@@ -1,7 +1,8 @@
 import { Server, Socket } from "socket.io";
 import AppError from "../errors/appError.js";
-import jwt from "jsonwebtoken";
+import jwt, { JsonWebTokenError } from "jsonwebtoken";
 import { handleRoomEvents } from "./room.handler.js";
+import { JwtUserPayload, AuthenticateSocket } from "../types/socket.types.js";
 
 export const setupSocketHandlers = (io: Server) => {
   io.use((socket: Socket, next) => {
@@ -10,14 +11,17 @@ export const setupSocketHandlers = (io: Server) => {
       return next(new Error("Authentification requise pour jouer"));
     }
     try {
-      const decodedPlayer = jwt.verify(token, process.env.JWT_SECRET as string);
+      const decodedPlayer = jwt.verify(
+        token,
+        process.env.JWT_SECRET as string,
+      ) as JwtUserPayload;
       socket.data.user = decodedPlayer;
       next();
     } catch (error) {
       return next(new Error("Token invalide ou expiré"));
     }
   });
-  io.on("connection", (socket: Socket) => {
+  io.on("connection", (socket: AuthenticateSocket) => {
     console.log(
       `Un joueur est connecté:${socket.data.user.username} ID:${socket.id}`,
     );
