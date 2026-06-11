@@ -9,9 +9,11 @@ export interface BlindTestTrack {
 export type GamePhase = "LOBBY" | "GUESS_SONG" | "GUESS_OWNER" | "SCOREBOARD";
 
 export interface GameState {
-  roomCode: string;
+  roomHost: string;
+  code: string;
   phase: GamePhase;
   tracks: BlindTestTrack[];
+  playlists?: Record<number, string>;
   currentTrack: number;
   scores: Record<number, number>;
 }
