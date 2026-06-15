@@ -3,7 +3,12 @@ import AppError from "../errors/appError.js";
 import {
   SpotifyAuthResponse,
   SpotifyTokenBodyParams,
+  SpotifyPlaylist,
+  SpotifyTrack,
 } from "../types/spotify.js";
+import { access } from "node:fs";
+import { TokenExpiredError } from "jsonwebtoken";
+import { title } from "node:process";
 
 const getSpotifyAuthUrl = (): string => {
   const scope = "user-read-private user-read-email";
@@ -66,4 +71,66 @@ const getSpotifyProfile = async (accessToken: string) => {
     throw new AppError("failed to get Spotify profile", 500);
   }
 };
-export default { getSpotifyAuthUrl, getTokens, getSpotifyProfile };
+
+// recuperation playlist
+const getUserPlaylist = async (
+  accessToken: string,
+): Promise<SpotifyPlaylist[]> => {
+  try {
+    const response = await axios.get(
+      "https://api.spotify.com/v1/me/playlists",
+      {
+        headers: { Authorization: `Bearer${accessToken}` },
+      },
+    );
+    return response.data.items.map((item: any) => {
+      id: item.id;
+      name: item.name;
+      imageUrl: item.images.length > 0 ? item.images[0].url : null;
+    });
+  } catch (error) {
+    console.log("erreur de recuperation des playlist", error);
+    throw new AppError("Erreur de recuperation des playlist", 500);
+  }
+};
+//recuperation des titres de la playlist
+const getPlaylistTrack = async (
+  accessToken: string,
+  playlistId: string,
+): Promise<SpotifyTrack[]> => {
+  try {
+    const response = await axios.get(
+      `https://api.spotify.com/v1/playlists/${playlistId}/tracks`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+    const validTracks: SpotifyTrack[] = [];
+
+    response.data.items.array.forEach((item: any) => {
+      const track = item.track;
+      if (track && track.preview_url) {
+        validTracks.push({
+          id: track.id,
+          title: track.name,
+          artist: track.artists[0].name,
+          previewUrl: track.preview_url,
+        });
+      }
+    });
+    return validTracks;
+  } catch (error) {
+    console.log("Erreur de recuperation des tracks");
+    throw new AppError(
+      "Impossible de recuperer les tracks de la playlist",
+      500,
+    );
+  }
+};
+export default {
+  getSpotifyAuthUrl,
+  getTokens,
+  getSpotifyProfile,
+  getPlaylistTrack,
+  getUserPlaylist,
+};
