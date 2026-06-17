@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from "express";
+import { Request, Response, NextFunction, response } from "express";
 import AppError from "../errors/appError.js";
 import spotifyService from "../services/spotify.service.js";
 import authService from "../services/auth.service.js";
@@ -92,6 +92,27 @@ const updateUsername = async (
     });
   } catch (error) {
     next(error);
+  }
+};
+
+const getMyPlaylist = async (
+  req: Request,
+  res: Response,
+  Next: NextFunction,
+) => {
+  try {
+    const userId = (req as any).user?.id;
+    if (userId) {
+      throw new AppError("Utilisateur non authentifié", 401);
+    }
+    const tokens = await userModel.getSpotifyToken(userId);
+    if (!tokens || !tokens.access_token) {
+      throw new AppError("Spotify non lié", 404);
+    }
+    const playlists = await spotifyService.getUserPlaylist(tokens.access_token);
+    res.status(200).json({ status: "success", data: { playlists } });
+  } catch (error) {
+    Next(error);
   }
 };
 export default { LoginWithSpotify, callback, updateUsername };
