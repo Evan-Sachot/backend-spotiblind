@@ -6,16 +6,84 @@ import {
   SpotifyPlaylist,
   SpotifyTrack,
 } from "../types/spotify.js";
-import { access } from "node:fs";
-import { TokenExpiredError } from "jsonwebtoken";
-import { title } from "node:process";
+import { decrypt } from "../utils/crypto.util.js";
+import userModel from "../models/user.model.js";
+
+
+const clientId = process.env.SPOTIFY_CLIENT_ID || "";
+const clientSecret = process.env.SPOTIFY_CLIENT_SECRET||"";
+const REDIRECT_URI = process.env.SPOTIFY_REDIRECT_URI||"";
+
+const authBuffer = Buffer.from(`${clientId}:${clientSecret}`).toString(
+    "base64",
+  );   // Encodage en base64 de l'identifiant et du secret pour l'authentification spotify
+
+const spotifyApi = axios.create({
+  baseURL:"https://api.spotify.com/v1"
+})
+
+spotifyApi.interceptors.response.use(
+  (response)=>{
+    return response
+  },
+  async (error)=>{
+    const originalRequest = error.config;
+    if(error.response?.status === 401 ){
+      originalRequest._retry = true
+    try{
+      const userId = Number(originalRequest.headers["x-user-id"])
+
+      const tokens = await userModel.getSpotifyToken(userId);
+
+      if(!tokens) throw new AppError("Utilisateur introuvable",404);
+
+       const decryptedRefresh = decrypt(tokens.refresh_token);
+
+      const refreshData = new URLSearchParams({
+        grant_type:"refresh_token",
+        refresh_token: decryptedRefresh,
+      }).toString();
+      const refreshResponse = await axios.post(
+        "https://accounts.spotify.com/api/token",
+        refreshData,
+        {
+          headers:{
+            "Content-Type": "application/x-www-form-urlencoded",
+            Authorization: `Basic ${authBuffer}`,
+          }
+        }
+      );
+      const newAccessToken = refreshResponse.data.access_token;
+      const newRefreshToken= refreshResponse.data.refresh_token|| decryptedRefresh;
+
+      const expireAt = new Date();
+      expireAt.setSeconds(expireAt.getSeconds() + refreshResponse.data.expires_in);
+
+      await userModel.updateToken(userId,{
+        access_token:newAccessToken,
+        refresh_token:newRefreshToken,
+        expire_at:expireAt
+      });
+      originalRequest.headers["Authorization"] = `Bearer ${newAccessToken}`;
+
+      return spotifyApi(originalRequest);
+    }catch(refreshError){
+      console.error("Echec du rafraîchissement tokens", refreshError);
+      throw new AppError("Session Spotify expirée",401);
+    }}
+   return Promise.reject(error);
+  }
+)
+
+
+
 
 const getSpotifyAuthUrl = (): string => {
   const scope = "user-read-private user-read-email";
   const authQuery: SpotifyAuthResponse = {
     response_type: "code",
-    client_id: process.env.SPOTIFY_CLIENT_ID || "",
-    redirect_uri: process.env.SPOTIFY_REDIRECT_URI || "",
+    client_id: clientId,
+    redirect_uri: REDIRECT_URI,
     scope,
   };
   // conversion en format URL
@@ -29,14 +97,10 @@ const getTokens = async (
   refresh_token: string;
   expires_in: number;
 }> => {
-  const clientId = process.env.SPOTIFY_CLIENT_ID || "";
-  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET || "";
-  const authBuffer = Buffer.from(`${clientId}:${clientSecret}`).toString(
-    "base64",
-  ); // Encodage en base64 de l'identifiant et du secret pour l'authentification spotify
+
   const tokenBody: SpotifyTokenBodyParams = {
     code,
-    redirect_uri: process.env.SPOTIFY_REDIRECT_URI || "",
+    redirect_uri: REDIRECT_URI,
     grant_type: "authorization_code",
   };
   const data = new URLSearchParams(
@@ -74,20 +138,21 @@ const getSpotifyProfile = async (accessToken: string) => {
 
 // recuperation playlist
 const getUserPlaylist = async (
+  userId:number,
   accessToken: string,
 ): Promise<SpotifyPlaylist[]> => {
   try {
-    const response = await axios.get(
-      "https://api.spotify.com/v1/me/playlists",
-      {
-        headers: { Authorization: `Bearer${accessToken}` },
-      },
-    );
-    return response.data.items.map((item: any) => {
-      id: item.id;
-      name: item.name;
-      imageUrl: item.images.length > 0 ? item.images[0].url : null;
-    });
+    const response = await spotifyApi.get("/me/playlists",{
+      headers:{
+        Authorization:`Bearer ${accessToken}`,
+        "x-user-id":userId.toString()
+      }
+    })
+    return response.data.items.map((item: any) => ({
+      id: item.id,
+      name: item.name,
+      imageUrl: item.images.length > 0 ? item.images[0].url : null,
+    }));
   } catch (error) {
     console.log("erreur de recuperation des playlist", error);
     throw new AppError("Erreur de recuperation des playlist", 500);
@@ -95,19 +160,20 @@ const getUserPlaylist = async (
 };
 //recuperation des titres de la playlist
 const getPlaylistTrack = async (
+  userId:number,
   accessToken: string,
   playlistId: string,
 ): Promise<SpotifyTrack[]> => {
   try {
-    const response = await axios.get(
-      `https://api.spotify.com/v1/playlists/${playlistId}/tracks`,
-      {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      },
-    );
+    const response = await spotifyApi.get(`/playlists/${playlistId}/tracks`,{
+      headers:{
+        Authorization:`Bearer ${accessToken}`,
+        "x-user-id":userId.toString()
+      }
+    })
     const validTracks: SpotifyTrack[] = [];
 
-    response.data.items.array.forEach((item: any) => {
+    response.data.items.forEach((item: any) => {
       const track = item.track;
       if (track && track.preview_url) {
         validTracks.push({

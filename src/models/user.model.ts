@@ -51,4 +51,18 @@ const updateUsername = async (
   await pool.execute(query, [username, userId]);
 };
 
-export default { findSpotifyId, createUser, updateToken, updateUsername };
+const getSpotifyToken = async (userId:number):Promise<UserTokens|null>=>{
+  const query = "SELECT access_token, refresh_token, expire_at FROM users WHERE id=?"
+  const [rows]= await pool.execute(query,[userId]);
+  const users = rows as any;
+  if(users.length>0){
+    const user = users[0];
+    return{
+      access_token:user.access_token,
+      refresh_token:user.refresh_token,
+      expire_at:user.ex
+    }
+  }
+  return null;
+}
+export default { findSpotifyId, createUser, updateToken, updateUsername,getSpotifyToken };
