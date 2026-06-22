@@ -60,7 +60,7 @@ const getSpotifyToken = async (userId:number):Promise<UserTokens|null>=>{
     return{
       access_token:user.access_token,
       refresh_token:user.refresh_token,
-      expire_at:user.ex
+      expire_at:user.expire_at
     }
   }
   return null;

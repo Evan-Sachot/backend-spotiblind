@@ -3,6 +3,7 @@ import AppError from "../errors/appError.js";
 import spotifyService from "../services/spotify.service.js";
 import authService from "../services/auth.service.js";
 import userModel from "../models/user.model.js";
+import { AuthenticateRequest } from "../types/express.type.js";
 
 const LoginWithSpotify = (
   req: Request,
@@ -31,7 +32,7 @@ const callback = async (
       tokenData.access_token,
     );
     const expireAt = new Date(Date.now() + tokenData.expires_in * 1000); // calcul de la date d'expiration
-    const existingUser = await userModel.findSpotifyId(profile.spotifyId);
+    let existingUser = await userModel.findSpotifyId(profile.spotifyId);
     if (existingUser) {
       await userModel.updateToken(existingUser.id, {
         access_token: tokenData.access_token,
@@ -71,24 +72,26 @@ const callback = async (
 };
 
 const updateUsername = async (
-  req: Request,
+  req: AuthenticateRequest,
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const { userId, username } = req.body;
-    if (!username || username.trim() === "") {
-      throw new AppError("userId et username sont requis", 400);
-    }
+    const {  username } = req.body;
+    const userId = req.user?.id
     if (!userId) {
-      throw new AppError("userId manquant", 400);
+      throw new AppError("Non Authentifié", 400);
     }
+    if (!username || username.trim() === "") {
+      throw new AppError("username sont requis", 400);
+    }
+   
     await userModel.updateUsername(userId, username);
     const newToken = authService.generateToken(userId, username);
     res.json({
       message: "Username mis à jour avec succès",
       token: newToken,
-      user: { id: userId, username },
+      user: { userId: userId, username },
     });
   } catch (error) {
     next(error);
