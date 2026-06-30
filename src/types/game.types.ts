@@ -16,4 +16,5 @@ export interface GameState {
   playlists?: Record<number, string>;
   currentTrack: number;
   scores: Record<number, number>;
+  maxRounds?:number;
 }
