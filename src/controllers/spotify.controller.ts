@@ -77,15 +77,15 @@ const updateUsername = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const {  username } = req.body;
-    const userId = req.user?.id
+    const { username } = req.body;
+    const userId = req.user?.id;
     if (!userId) {
       throw new AppError("Non Authentifié", 400);
     }
     if (!username || username.trim() === "") {
       throw new AppError("username sont requis", 400);
     }
-   
+
     await userModel.updateUsername(userId, username);
     const newToken = authService.generateToken(userId, username);
     res.json({
@@ -97,4 +97,33 @@ const updateUsername = async (
     next(error);
   }
 };
-export default { LoginWithSpotify, callback, updateUsername };
+
+const searchTracks = async (
+  req: AuthenticateRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const query = req.query.q as string;
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new AppError("Non Authentifié", 400);
+    }
+    if (!query || query.trim() === "") {
+      res.json([]);
+      return;
+    }
+    const tokens = await userModel.getSpotifyToken(userId);
+    if (!tokens) {
+      throw new AppError("utilisateur introuvable", 404);
+    }
+    const tracks = await spotifyService.searchTracks(
+      userId,
+      tokens.access_token,
+      query,
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+export default { LoginWithSpotify, callback, updateUsername, searchTracks };

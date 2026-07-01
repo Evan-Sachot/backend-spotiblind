@@ -16,5 +16,7 @@ export interface GameState {
   playlists?: Record<number, string>;
   currentTrack: number;
   scores: Record<number, number>;
-  maxRounds?:number;
+  maxRounds?: number;
+  roundCorrectPlayers?: Record<number, boolean>; // Qui a trouvé la musique
+  roundOwnerGuesses?: Record<number, number>; // Qui a voté pour quel propriétaire
 }
