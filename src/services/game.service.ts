@@ -19,7 +19,7 @@ const prepareTracks = async (
         .then((tracks) =>
           tracks.map((track) => ({
             ...track,
-            ownerId: userId,
+            ownerIds: [userId],
           })),
         );
       trackPromises.push(promise);
@@ -30,11 +30,25 @@ const prepareTracks = async (
 
   let allTracks = trackByPlaylist.flat();
 
-  for (let i = allTracks.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [allTracks[i], allTracks[j]] = [allTracks[j], allTracks[i]];
+  const trackMap: Record<string, BlindTestTrack> = {};
+
+  for (const track of allTracks) {
+    if (trackMap[track.id]) {
+      const existingTrack = trackMap[track.id];
+      if (!existingTrack.ownerIds.includes(track.ownerIds[0])) {
+        existingTrack.ownerIds.push(track.ownerIds[0]);
+      }
+    } else {
+      trackMap[track.id] = track;
+    }
   }
-  return maxRounds ? allTracks.slice(0, maxRounds) : allTracks;
+  let uniqueTracks = Object.values(trackMap);
+
+  for (let i = uniqueTracks.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [uniqueTracks[i], uniqueTracks[j]] = [uniqueTracks[j], uniqueTracks[i]];
+  }
+  return maxRounds ? uniqueTracks.slice(0, maxRounds) : uniqueTracks;
 };
 const startNewRound = (
   io: Server,
@@ -93,13 +107,13 @@ const endRoundAndNext = (
       currentGame.roundOwnerGuesses,
     )) {
       const playerId = Number(playerIdStr);
-      if (guessOwnerId === currentTrack.ownerId) {
+      if (currentTrack.ownerIds.includes(guessOwnerId)) {
         currentGame.scores[playerId] = (currentGame.scores[playerId] || 0) + 5; // + 5 point si le guess est juste
       }
     }
   }
   io.to(roomCode).emit("roundSummary", {
-    ownerId: currentTrack.ownerId,
+    ownerId: currentTrack.ownerIds,
     scores: currentGame.scores,
   });
 
@@ -144,10 +158,21 @@ const processOwnerGuess = (
   currentGame.roundOwnerGuesses[userId] = guessedOwnerId;
   return true;
 };
+const resetGameToLobby = (currentGame: GameState) => {
+  currentGame.phase = "LOBBY";
+  currentGame.tracks = [];
+  currentGame.currentTrack = 0;
+  currentGame.playlists = {};
+
+  for (const playerIdStr of Object.keys(currentGame.scores)) {
+    currentGame.scores[Number(playerIdStr)] = 0;
+  }
+};
 
 export default {
   prepareTracks,
   startNewRound,
   processSongGuess,
   processOwnerGuess,
+  resetGameToLobby,
 };

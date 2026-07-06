@@ -3,7 +3,7 @@ export interface BlindTestTrack {
   title: string;
   artist: string;
   previewUrl: string;
-  ownerId: number;
+  ownerIds: number[];
 }
 
 export type GamePhase = "LOBBY" | "GUESS_SONG" | "GUESS_OWNER" | "SCOREBOARD";

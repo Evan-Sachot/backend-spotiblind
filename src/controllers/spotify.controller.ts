@@ -122,6 +122,7 @@ const searchTracks = async (
       tokens.access_token,
       query,
     );
+    res.json(tracks);
   } catch (error) {
     next(error);
   }

@@ -59,6 +59,20 @@ export const handleRoomEvents = (
     if (currentRoom) {
       const currentGame = activeGames.get(currentRoom);
       if (currentGame) {
+        if (currentGame.roomHost === user.username) {
+          console.log(
+            `L'hôte ${user.username} a fermé le salon ${currentRoom}`,
+          );
+          io.to(currentRoom).emit("roomClosed", {
+            message: `L'hôte ${user.username} a fermé le salon ${currentRoom}`,
+          });
+          for (const playerIdStr of Object.keys(currentGame.scores)) {
+            activePlayers.delete(Number(playerIdStr));
+          }
+          activeGames.delete(currentRoom);
+          io.in(currentRoom).socketsLeave(currentRoom);
+          return;
+        }
         delete currentGame.scores[user.id];
         //verification du nombre de joueurs actif delete de la room si vide
         if (Object.keys(currentGame.scores).length === 0) {
@@ -74,6 +88,54 @@ export const handleRoomEvents = (
         userId: user.id,
       });
       socket.emit("roomLeft");
+    }
+  });
+  socket.on("disconnect", () => {
+    const currentRoom = activePlayers.get(user.id);
+
+    if (currentRoom) {
+      console.log(`${user.username} a perdu la connexion. En attente (15s)...`);
+
+      socket.to(currentRoom).emit("playerDisconnected", {
+        userId: user.id,
+        message: `${user.username} a perdu la connexion. En attente (15s)...`,
+      });
+
+      setTimeout(() => {
+        const isStillInRoom = activePlayers.get(user.id) === currentRoom;
+        const currentGame = activeGames.get(currentRoom);
+
+        if (currentGame && isStillInRoom) {
+          if (currentGame.roomHost === user.username) {
+            console.log(
+              `L'hôte ${user.username} a perdu la connexion. suppression du salon ${currentRoom}.`,
+            );
+
+            io.to(currentRoom).emit("roomClosed", {
+              message: "Connexion perdue avec l'hôte. Le salon est fermé.",
+            });
+
+            for (const playerIdStr of Object.keys(currentGame.scores)) {
+              activePlayers.delete(Number(playerIdStr));
+            }
+            activeGames.delete(currentRoom);
+            io.in(currentRoom).socketsLeave(currentRoom);
+            return;
+          }
+          console.log(`${user.username} ne s'est pas reconnecté à temps.`);
+          delete currentGame.scores[user.id];
+          activePlayers.delete(user.id);
+
+          io.to(currentRoom).emit("playerLeft", {
+            message: `${user.username} a été déconnecté.`,
+            userId: user.id,
+          });
+
+          if (Object.keys(currentGame.scores).length === 0) {
+            activeGames.delete(currentRoom);
+          }
+        }
+      }, 15000);
     }
   });
 };

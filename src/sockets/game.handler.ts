@@ -122,4 +122,25 @@ export const handleGameEvents = (
       socket.emit("ownerGuessRegistered", { success: false });
     }
   });
+
+  socket.on("playAgain", () => {
+    const roomCode = activePlayers.get(user.id);
+    if (!roomCode) return;
+    const currentGame = activeGames.get(roomCode);
+    if (
+      currentGame &&
+      currentGame.roomHost === user.username &&
+      currentGame.phase === "SCOREBOARD"
+    ) {
+      console.log(
+        `redemarrage de la partie salon ${currentGame.code} par ${user.username}`,
+      );
+
+      gameService.resetGameToLobby(currentGame);
+
+      io.to(roomCode).emit("gameReset", {
+        message: "L'hote a relancer une partie, retour au lobby.",
+      });
+    }
+  });
 };
