@@ -3,7 +3,10 @@ import jwt from "jsonwebtoken";
 import AppError from "../errors/appError.js";
 import { AuthenticateRequest } from "../types/express.type.js";
 
-const jwtSecret = process.env.JWT_SECRET || "fallback_secret";
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret) {
+  throw new Error("JWT_SECRET manquant dans le .env — serveur arrêté par sécurité");
+}
 
 export const verifyToken = (req: AuthenticateRequest, res:Response, next:NextFunction)=>{
  try{

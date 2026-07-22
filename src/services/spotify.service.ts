@@ -29,7 +29,7 @@ spotifyApi.interceptors.response.use(
   },
   async (error) => {
     const originalRequest = error.config;
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       try {
         const userId = Number(originalRequest.headers["x-user-id"]);
@@ -81,7 +81,7 @@ spotifyApi.interceptors.response.use(
 );
 
 const getSpotifyAuthUrl = (): string => {
-  const scope = "user-read-private user-read-email";
+  const scope =  "user-read-private user-read-email playlist-read-private playlist-read-collaborative";
   const authQuery: SpotifyAuthResponse = {
     response_type: "code",
     client_id: clientId,
@@ -152,7 +152,7 @@ const getUserPlaylist = async (
     return response.data.items.map((item: any) => ({
       id: item.id,
       name: item.name,
-      imageUrl: item.images.length > 0 ? item.images[0].url : null,
+      imageUrl: item.images?.[0]?.url ?? "",
     }));
   } catch (error) {
     console.log("erreur de recuperation des playlist", error);
@@ -164,34 +164,66 @@ const getPlaylistTrack = async (
   userId: number,
   accessToken: string,
   playlistId: string,
-): Promise<SpotifyTrack[]> => {
+) => {
   try {
-    const response = await spotifyApi.get(`/playlists/${playlistId}/tracks`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "x-user-id": userId.toString(),
-      },
-    });
-    const validTracks: SpotifyTrack[] = [];
+    // --- PAGINATION ---
+    // L'API renvoie les titres par pages (limit max 100). Sans boucle,
+    // on ne lisait QUE la première page (~20 titres) : le tirage se
+    // faisait toujours sur le même mini-échantillon de la playlist.
+    const PAGE_SIZE = 100;
+    const MAX_ITEMS = 500; // garde-fou : évite 30 requêtes sur une playlist de 3000 titres
+    const allEntries: any[] = [];
+    let offset = 0;
+    let hasNextPage = true;
 
-    response.data.items.forEach((item: any) => {
-      const track = item.track;
-      if (track && track.preview_url) {
-        validTracks.push({
-          id: track.id,
-          title: track.name,
-          artist: track.artists[0].name,
-          previewUrl: track.preview_url,
-        });
-      }
-    });
-    return validTracks;
-  } catch (error) {
-    console.log("Erreur de recuperation des tracks");
-    throw new AppError(
-      "Impossible de recuperer les tracks de la playlist",
-      500,
+    while (hasNextPage && offset < MAX_ITEMS) {
+      const response = await spotifyApi.get(
+        `/playlists/${playlistId}/items`,
+        {
+          params: { limit: PAGE_SIZE, offset },
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "x-user-id": userId.toString(),
+          },
+        },
+      );
+
+      allEntries.push(...(response.data.items ?? []));
+      // "next" est fourni par Spotify : null quand il n'y a plus de page
+      hasNextPage = Boolean(response.data.next);
+      offset += PAGE_SIZE;
+    }
+
+    console.log(
+      `Playlist ${playlistId} : ${allEntries.length} entrées récupérées (pagination)`,
     );
+
+    // --- PARSING (inchangé : format post-migration février 2026) ---
+    const playableTracks = allEntries
+      .filter(
+        (entry: any) =>
+          entry.item && entry.item.id && entry.item.type !== "episode",
+      )
+      .map((entry: any) => ({
+        id: entry.item.id,
+        title: entry.item.name,
+        artist: entry.item.artists?.[0]?.name ?? "Artiste inconnu",
+        imageUrl: entry.item.album?.images?.[0]?.url ?? "",
+        previewUrl: entry.item.preview_url ?? "",
+      }));
+
+    console.log(
+      `Playlist ${playlistId} : ${playableTracks.length}/${allEntries.length} pistes exploitables`,
+    );
+
+    return playableTracks;
+  } catch (error: any) {
+    console.error(
+      "Erreur récupération items :",
+      error.response?.status,
+      error.response?.data ?? error,
+    );
+    throw new AppError("Impossible de récupérer les titres de la playlist", 500);
   }
 };
 // recherche track pour autocompletion submit

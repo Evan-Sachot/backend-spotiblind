@@ -3,3 +3,4 @@ node_modules/
 .env.*
 dist/
 buidl/
+package-lock.json 
