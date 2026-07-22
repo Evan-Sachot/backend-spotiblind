@@ -9,3 +9,16 @@ export type SpotifyTokenBodyParams = {
   redirect_uri: string;
   grant_type: "authorization_code";
 };
+
+export interface SpotifyPlaylist {
+  id: string;
+  name: string;
+  imageUrl: string | null;
+}
+
+export interface SpotifyTrack {
+  id: string;
+  title: string;
+  artist: string;
+  previewUrl: string;
+}

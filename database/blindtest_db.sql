@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Hôte : 127.0.0.1:3306
--- Généré le : ven. 24 avr. 2026 à 11:33
+-- Généré le : mer. 15 juil. 2026 à 14:38
 -- Version du serveur : 9.1.0
 -- Version de PHP : 8.3.14
 
@@ -20,8 +20,6 @@ SET time_zone = "+00:00";
 --
 -- Base de données : `blindtest_db`
 --
-CREATE DATABASE IF NOT EXISTS blindtest_db;
-USE blindtest_db;
 
 -- --------------------------------------------------------
 
@@ -37,23 +35,6 @@ CREATE TABLE IF NOT EXISTS `lobby` (
   `invite_code` varchar(150) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `host_id` (`host_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
--- --------------------------------------------------------
-
---
--- Structure de la table `spotify_account`
---
-
-DROP TABLE IF EXISTS `spotify_account`;
-CREATE TABLE IF NOT EXISTS `spotify_account` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `user_id` int DEFAULT NULL,
-  `refresh_token` text,
-  `access_token` text,
-  `expire_at` timestamp NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `user_id` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -102,11 +83,18 @@ CREATE TABLE IF NOT EXISTS `users` (
   `id` int NOT NULL AUTO_INCREMENT,
   `email` varchar(150) DEFAULT NULL,
   `username` varchar(150) DEFAULT NULL,
-  `password` varchar(255) DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-COMMIT;
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `spotify_id` varchar(150) NOT NULL,
+  `access_token` text,
+  `refresh_token` text,
+  `expire_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `spotify_id` (`spotify_id`)
+) ENGINE=MyISAM AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Déchargement des données de la table `users`
+--
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
