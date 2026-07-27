@@ -117,19 +117,28 @@ const updateUsername = async (
     if (!userId) {
       throw new AppError("Non authentifié", 401);
     }
-    if (!username || username.trim() === "") {
+    if (typeof username !== "string") {
       throw new AppError("Le nouveau pseudo est requis", 400);
     }
-
-    await userModel.updateUsername(userId, username);
+    const cleanUsername = username.trim();
+    if (cleanUsername.length < 3 || cleanUsername.length > 15) {
+      throw new AppError("Le pseudo doit faire entre 3 et 15 caractères", 400);
+    }
+    if (!/^[a-zA-Z0-9À-ÿ_-]+$/.test(cleanUsername)) {
+      throw new AppError(
+        "Le pseudo contient des caractères non autorisés",
+        400,
+      );
+    }
+    await userModel.updateUsername(userId, cleanUsername);
     // Nouveau token OBLIGATOIRE : le pseudo est encodé dedans,
     // le front le remplace puis reconnecte son socket avec
-    const newToken = authService.generateToken(userId, username);
+    const newToken = authService.generateToken(userId, cleanUsername);
 
     res.json({
       message: "Username mis à jour avec succès",
       token: newToken,
-      user: { id: userId, username },
+      user: { id: userId, cleanUsername },
     });
   } catch (error) {
     next(error);
@@ -194,5 +203,10 @@ const getPlaylists = async (
   }
 };
 
-
-export default { LoginWithSpotify, callback, updateUsername, searchTracks,getPlaylists };
+export default {
+  LoginWithSpotify,
+  callback,
+  updateUsername,
+  searchTracks,
+  getPlaylists,
+};
