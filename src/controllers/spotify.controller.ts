@@ -88,8 +88,7 @@ const callback = async (
       });
       const jwtToken = authService.generateToken(newUser.id, newUser.username);
 
-      // newUser=true -> useAuthLogic affichera le formulaire de pseudo
-      // au lieu de rediriger directement vers le lobby
+      // newUser=true => affichera le formulaire de pseudo
       res.redirect(`${FRONTEND_URL}/login?token=${jwtToken}&newUser=true`);
     }
   } catch (error) {
@@ -136,7 +135,7 @@ const updateUsername = async (
     const newToken = authService.generateToken(userId, cleanUsername);
 
     res.json({
-      message: "Username mis à jour avec succès",
+      message: "Username mis à jour",
       token: newToken,
       user: { id: userId, cleanUsername },
     });

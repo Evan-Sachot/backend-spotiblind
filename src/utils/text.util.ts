@@ -22,12 +22,12 @@
 export const normalize = (raw: string): string => {
   return raw
     .toLowerCase()
-    .normalize("NFD") // décompose "é" en "e" + accent...
-    .replace(/[\u0300-\u036f]/g, "") // ...et supprime l'accent
-    .replace(/\(.*?\)|\[.*?\]/g, "") // retire (feat. X), [Remix]...
-    .split(" - ")[0] // retire "- Remastered 2019", "- Radio Edit"...
-    .replace(/[^a-z0-9 ]/g, " ") // ponctuation -> espace
-    .replace(/\s+/g, " ") // espaces multiples -> un seul
+    .normalize("NFD") 
+    .replace(/[\u0300-\u036f]/g, "") // accents
+    .replace(/\(.*?\)|\[.*?\]/g, "") // (feat.X), [Remix]
+    .split(" - ")[0] // retire "- Remastered 2019".
+    .replace(/[^a-z0-9 ]/g, " ") // ponctuation en espaces
+    .replace(/\s+/g, " ") // espaces multiples réduits à un seul
     .trim();
 };
 

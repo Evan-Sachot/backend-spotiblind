@@ -133,8 +133,9 @@ export const handleGameEvents = (
   // ------------------------------------------------------------
   socket.on("submitSongGuess", (guess) => {
     const ctx = getGame();
+    // partie existante et bonne phase
     if (!ctx || ctx.game.phase !== "GUESS_SONG") return;
-    // Garde-fou : payload malformé (client modifié) -> ignoré
+    // payload malformé (client modifié) => ignoré
     if (!guess || typeof guess.title !== "string" || typeof guess.artist !== "string") return;
 
     const isCorrect = gameService.processSongGuess(ctx.game, user.id, guess);

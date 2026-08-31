@@ -47,10 +47,7 @@ export interface ClientToServerEvents {
 // CE QUE LE SERVEUR A LE DROIT D'ENVOYER AU FRONT
 // ------------------------------------------------------------
 export interface ServerToClientEvents {
-  // --- Salon ---
-  // roomHost (username de l'hôte) est présent dans tous les payloads
-  // de salon : le front en a besoin pour afficher la couronne et
-  // savoir si le joueur courant est l'hôte
+//Gestion des salons
   roomCreated: (data: {
     roomCode: string;
     players: PublicPlayer[];
@@ -61,8 +58,7 @@ export interface ServerToClientEvents {
     players: PublicPlayer[];
     roomHost: string;
   }) => void;
-  // roomUpdated REMPLACE playerJoined / playerLeft / playerDisconnected :
-  // un seul événement, le serveur renvoie la liste complète à chaque changement
+  // roomUpdated est emis a chaque changement d'etat du salon
   roomUpdated: (data: {
     players: PublicPlayer[];
     roomHost: string;
@@ -76,17 +72,15 @@ export interface ServerToClientEvents {
     roomHost: string;
   }) => void;
 
-  // --- Erreurs : UN SEUL canal, UN SEUL format ---
+  // Erreurs
   error: (data: { message: string }) => void;
 
-  // --- Lobby / réglages ---
+  // Lobby réglages
   settingsUpdated: (data: { maxRounds: number; guessTime: number }) => void; // remplace "maxRoundsSet"
   playerSelectedPlaylist: (data: { userId: number; playlistId: string }) => void;
 
-  // --- Boucle de jeu ---
+  //Boucle de jeu
   gameStarted: (data: { totalTracks: number }) => void;
-  // duration permet au front de faire son propre compte à rebours cosmétique
-  // (le serveur reste l'arbitre : c'est SON setTimeout qui clôt la phase)
   newTrack: (data: {
     previewUrl: string;
     currentRound: number;
