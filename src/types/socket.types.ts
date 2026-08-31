@@ -25,15 +25,12 @@ export interface CustomSocketData {
 // ------------------------------------------------------------
 export interface ClientToServerEvents {
   createRoom: () => void;
-  joinRoom: (roomCode: string) => void; // ⚠️ une STRING nue, pas un objet
+  joinRoom: (roomCode: string) => void;
   leaveRoom: () => void;
   selectPlaylist: (playlistId: string) => void; // remplace l'ancien "playerReady" du front
-  setMaxRounds: (maxRounds: number) => void; // réglage hôte, émis au changement du slider
-  setGuessTime: (guessTime: number) => void; // réglage hôte, émis au changement du slider
-  startGame: () => void; // ⚠️ plus de {rounds, guessTime} : les réglages passent par les 2 events ci-dessus
-  // Le payload complet (et plus seulement l'ID) : la même chanson
-  // existe sous plusieurs IDs Spotify (single/album/remaster), la
-  // vérification se fait donc par titre+artiste normalisés côté serveur
+  setMaxRounds: (maxRounds: number) => void; // réglage hôte, émis au changement 
+  setGuessTime: (guessTime: number) => void; 
+  startGame: () => void; // plus de {rounds, guessTime}: les réglages passent par les 2 events 
   submitSongGuess: (guess: {
     trackId: string;
     title: string;
@@ -93,6 +90,7 @@ export interface ServerToClientEvents {
     title: string;
     artist: string;
     duration: number;
+    imageUrl: string;
   }) => void;
   roundSummary: (data: { ownerIds: number[]; players: PublicPlayer[] }) => void; // ownerIds au PLURIEL (tableau)
   gameOver: (data: { players: PublicPlayer[] }) => void;

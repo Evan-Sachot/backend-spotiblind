@@ -12,6 +12,7 @@ export interface BlindTestTrack {
   id: string;
   title: string;
   artist: string;
+  imageUrl: string;
   previewUrl: string;
   ownerIds: number[];
 }

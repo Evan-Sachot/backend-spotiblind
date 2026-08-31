@@ -134,18 +134,18 @@ const startNewRound = (
   // Durée réglée par l'hôte, sinon valeur par défaut
   const guessTime = currentGame.guessTime ?? DEFAULT_GUESS_TIME;
 
-  // ANTI-TRICHE : on n'envoie QUE l'audio et les infos d'affichage,
-  // jamais le titre/artiste pendant cette phase
+  // ANTI-TRICHE QUE l'audio et les infos d'affichage,
+  // jamais le titre/artiste
   io.to(roomCode).emit("newTrack", {
     previewUrl: nextTrack.previewUrl,
-    currentRound: currentGame.currentTrack + 1, // +1 pour l'affichage humain (Round 1, 2...)
+    currentRound: currentGame.currentTrack + 1, // +1 pour l'affichage humain 
     totalRounds: currentGame.tracks.length,
     duration: guessTime, // le front décompte localement à partir de cette valeur
   });
 
-  // CHRONO SERVEUR (l'arbitre) : fin de phase automatique
+  // CHRONO SERVEUR 
   setTimeout(() => {
-    // Sécurité : la partie existe-t-elle encore et est-on toujours dans la bonne phase ?
+    // Sécurité 
     if (activeGames.has(roomCode) && currentGame.phase === "GUESS_SONG") {
       startOwnerGuessPhase(io, roomCode, currentGame, activeGames);
     }
@@ -168,6 +168,7 @@ const startOwnerGuessPhase = (
   io.to(roomCode).emit("songPhaseEnded", {
     title: currentTrack.title,
     artist: currentTrack.artist,
+    imageUrl: currentTrack.imageUrl,
     duration: OWNER_GUESS_TIME,
   });
 
