@@ -1,0 +1,14 @@
+# Fichiers exclus du contexte de construction de l'image back-end.
+# Objectif double : image plus legere, et surtout AUCUN secret copie
+# par inadvertance dans une couche de l'image.
+node_modules
+dist
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+*.md
+coverage
+.vscode
+database

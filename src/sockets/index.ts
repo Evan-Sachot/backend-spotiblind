@@ -1,7 +1,3 @@
-// ============================================================
-// SOCKETS INDEX — Point d'entrée : authentification JWT du
-// socket puis branchement des handlers (rooms + game).
-// ============================================================
 import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
 import { handleRoomEvents } from "./room.handler.js";
@@ -14,16 +10,12 @@ import {
 import { GameState } from "../types/game.types.js";
 
 export const setupSocketHandlers = (io: Server) => {
-  // On "verrouille" le serveur avec notre contrat d'événements :
-  // à partir d'ici, tout emit/on hors contrat = erreur de compilation
   const typedIo = io as TypedServer;
 
-  const activePlayers = new Map<number, string>(); // userId -> roomCode (index rapide)
-  const activeGames = new Map<string, GameState>(); // roomCode -> état complet du salon
+  const activePlayers = new Map<number, string>(); 
+  const activeGames = new Map<string, GameState>(); 
 
-  // --- MIDDLEWARE D'AUTHENTIFICATION ---
-  // Chaque connexion socket doit présenter le JWT (envoyé par le
-  // front dans socket.handshake.auth.token). Sinon : rejet.
+// MIDDLAWERES D'AUTHENTIFICATION
   typedIo.use((socket, next) => {
     const token = socket.handshake.auth.token;
     if (!token) {
@@ -34,14 +26,14 @@ export const setupSocketHandlers = (io: Server) => {
         token,
         process.env.JWT_SECRET as string,
       ) as JwtUserPayload;
-      socket.data.user = decodedPlayer; // typé grâce à CustomSocketData
+      socket.data.user = decodedPlayer; 
       next();
     } catch (error) {
       return next(new Error("Token invalide ou expiré"));
     }
   });
 
-  // --- BRANCHEMENT DES HANDLERS ---
+// GESTION DES EVENEMENTS
   typedIo.on("connection", (socket: AuthenticateSocket) => {
     console.log(
       `Joueur connecté : ${socket.data.user.username} (socket ${socket.id})`,
@@ -49,6 +41,5 @@ export const setupSocketHandlers = (io: Server) => {
 
     handleRoomEvents(typedIo, socket, activePlayers, activeGames);
     handleGameEvents(typedIo, socket, activePlayers, activeGames);
-    // NOTE : le disconnect est géré DANS room.handler (grâce de 15s)
   });
 };

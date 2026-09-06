@@ -1,7 +1,3 @@
-// ============================================================
-// GAME SERVICE — Le cerveau de la partie (logique métier pure)
-// Le handler écoute, le service calcule et pilote la boucle.
-// ============================================================
 import { GameState, BlindTestTrack, PublicPlayer } from "../types/game.types.js";
 import { TypedServer } from "../types/socket.types.js";
 import userModel from "../models/user.model.js";
@@ -9,19 +5,14 @@ import spotifyService from "./spotify.service.js";
 import itunesService from "./itunes.service.js";
 import { isSameSong } from "../utils/text.util.js";
 
-// --- CONSTANTES DE JEU (valeurs par défaut si l'hôte ne règle rien) ---
+// CONSTANTE DE JEU
 export const DEFAULT_MAX_ROUNDS = 10;
-export const DEFAULT_GUESS_TIME = 30; // secondes pour deviner la musique
-export const OWNER_GUESS_TIME = 15; // secondes pour voter le propriétaire
-const NEXT_ROUND_DELAY = 5000; // pause (ms) entre deux manches
-// Combien de pistes candidates on résout via iTunes par manche voulue :
-// x3 pour compenser celles sans extrait, sans spammer l'API iTunes
+export const DEFAULT_GUESS_TIME = 30; 
+export const OWNER_GUESS_TIME = 15; 
+const NEXT_ROUND_DELAY = 5000; 
 const CANDIDATE_FACTOR = 3;
 
-// ------------------------------------------------------------
-// HELPER : transforme le Record players en tableau "public"
-// prêt à être envoyé au front (utilisé par TOUS les emit).
-// ------------------------------------------------------------
+// TRANSFORMATION : GameState -> PublicPlayer[]
 const getPublicPlayers = (currentGame: GameState): PublicPlayer[] => {
   return Object.entries(currentGame.players).map(([idStr, info]) => ({
     id: Number(idStr),
@@ -30,18 +21,12 @@ const getPublicPlayers = (currentGame: GameState): PublicPlayer[] => {
   }));
 };
 
-// ------------------------------------------------------------
-// ÉTAPE 1 : PRÉPARATION DES PISTES
-// Récupère les playlists de chaque joueur, fusionne, dédoublonne
-// (en cumulant les ownerIds), mélange (Fisher-Yates) et découpe.
-// ------------------------------------------------------------
+// PREPARATION DES PISTES PHASE LOBBY => GUESS_SONG
 const prepareTracks = async (
   playlists: Record<number, string>,
   maxRounds: number,
 ): Promise<BlindTestTrack[]> => {
   const trackPromises: Promise<BlindTestTrack[]>[] = [];
-
-  // Une promesse par joueur : récupération parallèle des playlists
   for (const [userIdStr, playlistId] of Object.entries(playlists)) {
     const userId = Number(userIdStr);
 
@@ -52,7 +37,7 @@ const prepareTracks = async (
         .then((tracks) =>
           tracks.map((track) => ({
             ...track,
-            ownerIds: [userId], // chaque piste est taguée avec son propriétaire
+            ownerIds: [userId],
           })),
         );
       trackPromises.push(promise);
@@ -61,9 +46,6 @@ const prepareTracks = async (
 
   const trackByPlaylist = await Promise.all(trackPromises);
   const allTracks = trackByPlaylist.flat();
-
-  // Dédoublonnage : si 2 joueurs ont la même musique,
-  // on garde UNE piste avec les DEUX propriétaires
   const trackMap: Record<string, BlindTestTrack> = {};
   for (const track of allTracks) {
     if (trackMap[track.id]) {
@@ -76,33 +58,25 @@ const prepareTracks = async (
     }
   }
   const uniqueTracks = Object.values(trackMap);
-
-  // Mélange de Fisher-Yates (vrai aléatoire uniforme)
   for (let i = uniqueTracks.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [uniqueTracks[i], uniqueTracks[j]] = [uniqueTracks[j], uniqueTracks[i]];
   }
-
-  // --- RÉSOLUTION DES EXTRAITS AUDIO (iTunes) ---
-  // Spotify ne fournit plus de preview_url aux apps récentes.
-  // On ne résout que les candidats nécessaires (maxRounds x 3),
-  // APRÈS le mélange, pour limiter les appels à l'API iTunes.
   const candidates = uniqueTracks.slice(0, maxRounds * CANDIDATE_FACTOR);
 
   const resolvedTracks = await Promise.all(
     candidates.map(async (track) => {
-      // Si Spotify a (encore) fourni un extrait, on le garde tel quel
       if (track.previewUrl) return track;
-      // Sinon on cherche l'extrait équivalent chez iTunes
+      // RECHERCHER URL D'EXTRAIT ITUNES
       const previewUrl = await itunesService.searchPreviewUrl(
         track.title,
         track.artist,
       );
-      return previewUrl ? { ...track, previewUrl } : null; // null = piste injouable
+      return previewUrl ? { ...track, previewUrl } : null;
     }),
   );
 
-  // On écarte les pistes sans extrait, puis on limite au nombre de manches
+// FILTRER LES PISTES SANS EXTRAIT
   const playableTracks = resolvedTracks.filter(
     (track): track is BlindTestTrack => track !== null,
   );
@@ -114,10 +88,7 @@ const prepareTracks = async (
   return playableTracks.slice(0, maxRounds);
 };
 
-// ------------------------------------------------------------
-// ÉTAPE 2 : LANCEMENT D'UNE MANCHE (phase GUESS_SONG)
-// Envoie l'extrait audio + la durée, puis arme le chrono serveur.
-// ------------------------------------------------------------
+// LANCEMENT DE LA MANCHE
 const startNewRound = (
   io: TypedServer,
   roomCode: string,
@@ -126,36 +97,29 @@ const startNewRound = (
 ) => {
   currentGame.phase = "GUESS_SONG";
 
-  // Remise à zéro des données de la manche précédente
+// MISE A ZERO DES SCORES DE MANCHE
   currentGame.roundCorrectPlayers = {};
   currentGame.roundOwnerGuesses = {};
 
   const nextTrack = currentGame.tracks[currentGame.currentTrack];
-  // Durée réglée par l'hôte, sinon valeur par défaut
   const guessTime = currentGame.guessTime ?? DEFAULT_GUESS_TIME;
 
-  // ANTI-TRICHE QUE l'audio et les infos d'affichage,
-  // jamais le titre/artiste
   io.to(roomCode).emit("newTrack", {
     previewUrl: nextTrack.previewUrl,
-    currentRound: currentGame.currentTrack + 1, // +1 pour l'affichage humain 
+    currentRound: currentGame.currentTrack + 1, 
     totalRounds: currentGame.tracks.length,
-    duration: guessTime, // le front décompte localement à partir de cette valeur
+    duration: guessTime, 
   });
 
   // CHRONO SERVEUR 
   setTimeout(() => {
-    // Sécurité 
     if (activeGames.has(roomCode) && currentGame.phase === "GUESS_SONG") {
       startOwnerGuessPhase(io, roomCode, currentGame, activeGames);
     }
   }, guessTime * 1000);
 };
 
-// ------------------------------------------------------------
-// ÉTAPE 3 : PHASE DE VOTE (GUESS_OWNER)
-// On révèle la réponse et on ouvre les votes pendant 15 secondes.
-// ------------------------------------------------------------
+// PHASE DE VOTE
 const startOwnerGuessPhase = (
   io: TypedServer,
   roomCode: string,
@@ -179,11 +143,7 @@ const startOwnerGuessPhase = (
   }, OWNER_GUESS_TIME * 1000);
 };
 
-// ------------------------------------------------------------
-// ÉTAPE 4 : FIN DE MANCHE
-// Calcul des bonus propriétaire, bilan, puis manche suivante
-// ou fin de partie (SCOREBOARD).
-// ------------------------------------------------------------
+// FIN DE MANCHE ET PASSAGE A LA SUIVANTE
 const endRoundAndNext = (
   io: TypedServer,
   roomCode: string,
@@ -191,22 +151,18 @@ const endRoundAndNext = (
   activeGames: Map<string, GameState>,
 ) => {
   const currentTrack = currentGame.tracks[currentGame.currentTrack];
-
-  // +5 points pour chaque joueur ayant voté un des vrais propriétaires
   if (currentGame.roundOwnerGuesses) {
     for (const [playerIdStr, guessedOwnerId] of Object.entries(
       currentGame.roundOwnerGuesses,
     )) {
       const playerId = Number(playerIdStr);
       const player = currentGame.players[playerId];
-      // Le joueur peut avoir quitté entre-temps : on vérifie qu'il existe encore
       if (player && currentTrack.ownerIds.includes(guessedOwnerId)) {
         player.score += 5;
       }
     }
   }
 
-  // Bilan de la manche : les vrais propriétaires + les scores à jour (avec usernames)
   io.to(roomCode).emit("roundSummary", {
     ownerIds: currentTrack.ownerIds,
     players: getPublicPlayers(currentGame),
@@ -215,11 +171,9 @@ const endRoundAndNext = (
   currentGame.currentTrack++;
 
   if (currentGame.currentTrack >= currentGame.tracks.length) {
-    // Plus de pistes : fin de partie
     currentGame.phase = "SCOREBOARD";
     io.to(roomCode).emit("gameOver", { players: getPublicPlayers(currentGame) });
   } else {
-    // Pause de 5s pour lire les scores, puis manche suivante
     setTimeout(() => {
       if (activeGames.has(roomCode)) {
         startNewRound(io, roomCode, currentGame, activeGames);
@@ -228,15 +182,7 @@ const endRoundAndNext = (
   }
 };
 
-// ------------------------------------------------------------
-// LOGIQUE DE RÉPONSE : deviner la musique (+10 points)
-// Double vérification :
-// 1. ID identique (cas simple : même édition Spotify)
-// 2. OU titre+artiste normalisés identiques (cas fréquent : le
-//    joueur a cliqué la bonne chanson dans l'auto-complétion,
-//    mais sous un AUTRE ID — single vs album vs remaster).
-// Sans le 2e critère, une bonne réponse était comptée fausse.
-// ------------------------------------------------------------
+// LOGIQUE DE REPONSES
 const processSongGuess = (
   currentGame: GameState,
   userId: number,
@@ -250,7 +196,6 @@ const processSongGuess = (
 
   if (isCorrect) {
     if (!currentGame.roundCorrectPlayers) currentGame.roundCorrectPlayers = {};
-    // Anti double-points : si le joueur a déjà trouvé cette manche, on ignore
     if (currentGame.roundCorrectPlayers[userId]) return false;
 
     currentGame.roundCorrectPlayers[userId] = true;
@@ -262,11 +207,6 @@ const processSongGuess = (
   return false;
 };
 
-// ------------------------------------------------------------
-// LOGIQUE DE RÉPONSE : voter le propriétaire
-// Le vote est enregistré (et modifiable) jusqu'à la fin du chrono ;
-// les points sont calculés dans endRoundAndNext.
-// ------------------------------------------------------------
 const processOwnerGuess = (
   currentGame: GameState,
   userId: number,
@@ -277,16 +217,12 @@ const processOwnerGuess = (
   return true;
 };
 
-// ------------------------------------------------------------
-// RETOUR AU LOBBY (bouton "Rejouer" de l'hôte)
-// ------------------------------------------------------------
+// RETOUR AU LOBBY
 const resetGameToLobby = (currentGame: GameState) => {
   currentGame.phase = "LOBBY";
   currentGame.tracks = [];
   currentGame.currentTrack = 0;
   currentGame.playlists = {};
-
-  // On remet tous les scores à zéro en gardant les joueurs
   for (const playerIdStr of Object.keys(currentGame.players)) {
     currentGame.players[Number(playerIdStr)].score = 0;
   }
@@ -298,5 +234,5 @@ export default {
   processSongGuess,
   processOwnerGuess,
   resetGameToLobby,
-  getPublicPlayers, // exporté : utilisé aussi par room.handler pour les payloads
+  getPublicPlayers, 
 };

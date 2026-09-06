@@ -166,12 +166,8 @@ const getPlaylistTrack = async (
   playlistId: string,
 ) => {
   try {
-    // --- PAGINATION ---
-    // L'API renvoie les titres par pages (limit max 100). Sans boucle,
-    // on ne lisait QUE la première page (~20 titres) : le tirage se
-    // faisait toujours sur le même mini-échantillon de la playlist.
     const PAGE_SIZE = 100;
-    const MAX_ITEMS = 500; // garde-fou : évite 30 requêtes sur une playlist de 3000 titres
+    const MAX_ITEMS = 500;
     const allEntries: any[] = [];
     let offset = 0;
     let hasNextPage = true;
@@ -189,7 +185,6 @@ const getPlaylistTrack = async (
       );
 
       allEntries.push(...(response.data.items ?? []));
-      // "next" est fourni par Spotify : null quand il n'y a plus de page
       hasNextPage = Boolean(response.data.next);
       offset += PAGE_SIZE;
     }
@@ -198,7 +193,6 @@ const getPlaylistTrack = async (
       `Playlist ${playlistId} : ${allEntries.length} entrées récupérées (pagination)`,
     );
 
-    // --- PARSING (inchangé : format post-migration février 2026) ---
     const playableTracks = allEntries
       .filter(
         (entry: any) =>
@@ -226,12 +220,12 @@ const getPlaylistTrack = async (
     throw new AppError("Impossible de récupérer les titres de la playlist", 500);
   }
 };
-// recherche track pour autocompletion submit
+// AUTOCOMPLÉTION DE TITRES
 const searchTracks = async (
   userId: number,
   accessToken: string,
   query: string,
-  limit: number = 5, //seulement 5 premier resultat
+  limit: number = 5,
 ) => {
   try {
     const response = await spotifyApi.get("/search", {

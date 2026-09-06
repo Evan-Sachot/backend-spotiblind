@@ -59,9 +59,6 @@ CREATE TABLE IF NOT EXISTS `stats` (
 
 -- --------------------------------------------------------
 
---
--- Structure de la table `tracks`
---
 
 DROP TABLE IF EXISTS `tracks`;
 CREATE TABLE IF NOT EXISTS `tracks` (
@@ -74,9 +71,6 @@ CREATE TABLE IF NOT EXISTS `tracks` (
 
 -- --------------------------------------------------------
 
---
--- Structure de la table `users`
---
 
 DROP TABLE IF EXISTS `users`;
 CREATE TABLE IF NOT EXISTS `users` (

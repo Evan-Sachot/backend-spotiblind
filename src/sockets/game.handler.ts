@@ -1,7 +1,3 @@
-// ============================================================
-// GAME HANDLER — Le "standardiste" : écoute les événements,
-// vérifie les droits, délègue les calculs au game.service.
-// ============================================================
 import { GameState } from "../types/game.types.js";
 import { TypedServer, AuthenticateSocket } from "../types/socket.types.js";
 import gameService, {
@@ -16,8 +12,6 @@ export const handleGameEvents = (
   activeGames: Map<string, GameState>,
 ) => {
   const user = socket.data.user;
-
-  // Helper : retrouve la partie du joueur (ou undefined)
   const getGame = (): { roomCode: string; game: GameState } | undefined => {
     const roomCode = activePlayers.get(user.id);
     if (!roomCode) return undefined;
@@ -26,28 +20,20 @@ export const handleGameEvents = (
     return { roomCode, game };
   };
 
-  // ------------------------------------------------------------
-  // CHOIX DE PLAYLIST (chaque joueur, pendant le LOBBY)
-  // ------------------------------------------------------------
+// CHOIX DE PLAYLISTS
   socket.on("selectPlaylist", (playlistId: string) => {
     const ctx = getGame();
     if (!ctx || ctx.game.phase !== "LOBBY") return;
 
     if (!ctx.game.playlists) ctx.game.playlists = {};
     ctx.game.playlists[user.id] = playlistId;
-
-    // On informe le salon (permet d'afficher "prêt" à côté du joueur)
     io.to(ctx.roomCode).emit("playerSelectedPlaylist", {
       userId: user.id,
       playlistId: playlistId,
     });
   });
 
-  // ------------------------------------------------------------
-  // RÉGLAGES DE L'HÔTE (nombre de manches / temps de réponse)
-  // Un seul événement de diffusion : settingsUpdated, qui renvoie
-  // TOUS les réglages courants (plus simple à consommer côté front)
-  // ------------------------------------------------------------
+// REGLAGE DE LA PARTIE
   const broadcastSettings = (roomCode: string, game: GameState) => {
     io.to(roomCode).emit("settingsUpdated", {
       maxRounds: game.maxRounds ?? DEFAULT_MAX_ROUNDS,
@@ -57,10 +43,7 @@ export const handleGameEvents = (
 
   socket.on("setMaxRounds", (maxRounds: number) => {
     const ctx = getGame();
-    // Seul l'hôte règle la partie, et uniquement au lobby
     if (!ctx || ctx.game.phase !== "LOBBY" || ctx.game.roomHost !== user.username) return;
-
-    // Garde-fou : bornes raisonnables (évite un maxRounds négatif ou délirant)
     if (!Number.isInteger(maxRounds) || maxRounds < 1 || maxRounds > 50) return;
 
     ctx.game.maxRounds = maxRounds;
@@ -77,17 +60,13 @@ export const handleGameEvents = (
     broadcastSettings(ctx.roomCode, ctx.game);
   });
 
-  // ------------------------------------------------------------
-  // LANCEMENT DE LA PARTIE (hôte uniquement)
-  // Plus aucun paramètre : les réglages sont déjà dans le GameState
-  // ------------------------------------------------------------
+// LANCEMENT DE LA PARTIE
   socket.on("startGame", async () => {
     const ctx = getGame();
     if (!ctx || ctx.game.roomHost !== user.username) return;
     const { roomCode, game } = ctx;
 
     if (!game.playlists || Object.keys(game.playlists).length === 0) {
-      // CONTRAT : un seul canal d'erreur, toujours un objet { message }
       return socket.emit("error", { message: "Aucune playlist sélectionnée." });
     }
 
@@ -107,13 +86,11 @@ export const handleGameEvents = (
 
       game.tracks = allTracks;
       game.currentTrack = 0;
-      delete game.playlists; // plus besoin, et ça évite de traîner des données inutiles
+      delete game.playlists;
 
       io.to(roomCode).emit("gameStarted", {
         totalTracks: game.tracks.length,
       });
-
-      // 3 secondes de transition (écran "la partie commence") puis manche 1
       setTimeout(() => {
         gameService.startNewRound(io, roomCode, game, activeGames);
       }, 3000);
@@ -125,47 +102,33 @@ export const handleGameEvents = (
     }
   });
 
-  // ------------------------------------------------------------
-  // RÉPONSE : deviner la musique (phase GUESS_SONG)
-  // CONTRAT : { trackId, title, artist } — la vérification par
-  // titre+artiste (game.service) tolère les IDs différents entre
-  // éditions Spotify de la même chanson
-  // ------------------------------------------------------------
+// REPONSE
   socket.on("submitSongGuess", (guess) => {
     const ctx = getGame();
-    // partie existante et bonne phase
     if (!ctx || ctx.game.phase !== "GUESS_SONG") return;
-    // payload malformé (client modifié) => ignoré
     if (!guess || typeof guess.title !== "string" || typeof guess.artist !== "string") return;
 
     const isCorrect = gameService.processSongGuess(ctx.game, user.id, guess);
 
     if (isCorrect) {
-      // Tout le salon voit que ce joueur a trouvé (sans révéler la réponse)
       io.to(ctx.roomCode).emit("playerFoundSong", {
         userId: user.id,
         username: user.username,
       });
     }
-    // Feedback personnel (bordure verte/rouge de l'input sur la maquette)
     socket.emit("guessResult", { correct: isCorrect });
   });
 
-  // ------------------------------------------------------------
-  // RÉPONSE : voter le propriétaire (phase GUESS_OWNER)
-  // CONTRAT : le front envoie un NUMBER nu
-  // ------------------------------------------------------------
+
   socket.on("submitOwnerGuess", (ownerId: number) => {
     const ctx = getGame();
     if (!ctx || ctx.game.phase !== "GUESS_OWNER") return;
 
     gameService.processOwnerGuess(ctx.game, user.id, ownerId);
-    // Pas de confirmation dédiée : le vote est silencieux jusqu'au roundSummary
+  
   });
 
-  // ------------------------------------------------------------
-  // REJOUER (hôte, depuis l'écran SCOREBOARD)
-  // ------------------------------------------------------------
+// RELANCE DE LA PARTIE
   socket.on("playAgain", () => {
     const ctx = getGame();
     if (
